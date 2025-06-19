@@ -155,6 +155,19 @@ class BackendTester {
             log.info(`Event: ${response.event}`);
         });
 
+        // Connection error event (sent when validation fails)
+        this.socket.on('connection_error', (response) => {
+            log.error(`Connection error: ${response.message}`);
+            log.info(`Error Code: ${response.error_code}`);
+            log.info(`Error Type: ${response.error_type}`);
+            log.info(`Field: ${response.field}`);
+            log.info(`Details:`, response.details);
+            log.info(`Status: ${response.status}`);
+            log.info(`Timestamp: ${response.timestamp}`);
+            log.info(`Socket ID: ${response.socket_id}`);
+            log.info(`Event: ${response.event}`);
+        });
+
         // Device info acknowledgment (now JSON)
         this.socket.on('device:info:ack', (response) => {
             log.success('Device info acknowledgment received');

@@ -9,7 +9,8 @@
     "test:backend": "node test-backend.js",
     "test:interactive": "node test-backend.js --interactive",
     "test:auto": "node test-backend.js --auto",
-    "test:connection": "node simple-connection-test.js"
+    "test:connection": "node simple-connection-test.js",
+    "test:validation": "node test-validation.js"
   },
   "dependencies": {
     "socket.io-client": "^4.7.4",

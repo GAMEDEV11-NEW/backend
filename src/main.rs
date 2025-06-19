@@ -10,7 +10,7 @@ mod api;
 mod managers;
 
 use api::middleware::socket_io_validation;
-use managers::SocketManager;
+use managers::GameManager;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,8 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods(tower_http::cors::Any)
         .allow_origin(tower_http::cors::Any);
 
-    // Register Socket.IO event handlers
-    SocketManager::register_handlers(&io);
+    // Initialize Game Manager with Socket.IO handlers
+    GameManager::initialize(&io);
 
     let app = axum::Router::new()
         .route("/", get(|| async { "Socket.IO Game Admin Server - Socket.IO Only" }))

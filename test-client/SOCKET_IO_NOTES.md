@@ -61,6 +61,41 @@ socket.on('connect_error', (error) => {
 });
 ```
 
+### **4. Connection Error**
+**Event:** `connection_error`  
+**Trigger:** When device info validation fails  
+**Data:** JSON object with detailed error information
+
+```javascript
+socket.on('connection_error', (response) => {
+    console.log('Validation error:', response.message);
+    console.log('Error Code:', response.error_code);
+    console.log('Error Type:', response.error_type);
+    console.log('Field:', response.field);
+    console.log('Details:', response.details);
+    console.log('Status:', response.status);
+    console.log('Timestamp:', response.timestamp);
+    console.log('Socket ID:', response.socket_id);
+    console.log('Event:', response.event);
+    
+    // Example response:
+    // {
+    //   "status": "error",
+    //   "error_code": "EMPTY_FIELD",
+    //   "error_type": "VALUE_ERROR",
+    //   "field": "device_id",
+    //   "message": "device_id cannot be empty",
+    //   "details": {
+    //     "min_length": 1,
+    //     "received_length": 0
+    //   },
+    //   "timestamp": "2024-01-15T10:30:00Z",
+    //   "socket_id": "abc123",
+    //   "event": "connection_error"
+    // }
+});
+```
+
 ---
 
 ## 📨 Client → Server Events
@@ -68,10 +103,21 @@ socket.on('connect_error', (error) => {
 ### **1. Device Information**
 **Event:** `device:info`  
 **Purpose:** Send device information to server  
-**Acknowledgment:** `device:info:ack`
+**Acknowledgment:** `device:info:ack` (if valid) or `connection_error` (if invalid)
+
+**Required Fields:**
+- `device_id` (string, non-empty) - **Required**
+- `device_type` (string, non-empty) - **Required**
+- `timestamp` (string, ISO format) - **Required**
+
+**Optional Fields:**
+- `manufacturer` (string, non-empty if provided) - **Optional**
+- `model` (string, non-empty if provided) - **Optional**
+- `firmware_version` (string, non-empty if provided) - **Optional**
+- `capabilities` (array of strings, non-empty if provided) - **Optional**
 
 ```javascript
-// Send device info
+// Send device info (valid with all fields)
 socket.emit('device:info', {
     device_id: "test-device-001",
     device_type: "game-console",
@@ -82,12 +128,36 @@ socket.emit('device:info', {
     timestamp: new Date().toISOString()
 });
 
-// Listen for acknowledgment
+// Send minimal device info (only required fields)
+socket.emit('device:info', {
+    device_id: "test-device-002",
+    device_type: "game-console",
+    timestamp: new Date().toISOString()
+    // Optional fields can be omitted
+});
+
+// Send device info with some optional fields
+socket.emit('device:info', {
+    device_id: "test-device-003",
+    device_type: "game-console",
+    manufacturer: "TestCorp", // Optional field
+    model: "GameStation Pro", // Optional field
+    timestamp: new Date().toISOString()
+    // firmware_version and capabilities omitted
+});
+
+// Listen for acknowledgment (success)
 socket.on('device:info:ack', (response) => {
     console.log('Device info acknowledged:', response.message);
     console.log('Status:', response.status);
     console.log('Timestamp:', response.timestamp);
     // Output: "Device info received"
+});
+
+// Listen for validation error
+socket.on('connection_error', (response) => {
+    console.log('Validation failed:', response.message);
+    // Output: Specific error message like "device_id cannot be empty"
 });
 ```
 
@@ -299,10 +369,11 @@ process.on('SIGINT', () => {
 |-------|-----------|---------|----------------|
 | `connect` | Client ← Server | Connection established | - |
 | `connect_response` | Client ← Server | Welcome message with token | - |
-| `device:info` | Client → Server | Send device information | `device:info:ack` |
+| `device:info` | Client → Server | Send device information | `device:info:ack` or `connection_error` |
 | `device:status` | Client → Server | Send device status | `device:status:ack` |
 | `game:action` | Client → Server | Send game actions | None |
 | `admin:command` | Client → Server | Send admin commands | None |
+| `connection_error` | Client ← Server | Validation error response | - |
 | `disconnect` | Client ← Server | Connection terminated | - |
 
 ---
