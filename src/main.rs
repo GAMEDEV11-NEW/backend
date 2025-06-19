@@ -1,102 +1,46 @@
-use std::net::SocketAddr;
-use axum::Router;
-use socketioxide::{
-    extract::{Data, SocketRef},
-    SocketIo,
+use axum::{
+    routing::get,
+    middleware,
 };
-use serde_json::{Value, json};
+use socketioxide::SocketIo;
+use tower_http::cors::CorsLayer;
 use tracing::info;
-use tower_http::cors::{Any, CorsLayer};
-use tracing_subscriber::FmtSubscriber;
 
-mod config;
-mod handlers;
-mod models;
-mod routes;
-mod services;
-mod utils;
-mod websocket;
+mod api;
+mod managers;
 
-// Handler for new socket connections
-async fn on_connect(socket: SocketRef) {
-    info!("Client connected: {}", socket.id);
-
-    // Send welcome message to the connected client
-    let welcome_msg = json!({
-        "data": format!("Connected successfully! SID: {}", socket.id)
-    });
-    let _ = socket.emit("welcome", welcome_msg);
-
-    // Handle 'notice' events
-    socket.on("notice", |socket: SocketRef, Data::<Value>(data)| async move {
-        info!("[notice] From {}: {:?}", socket.id, data);
-        let response = json!({
-            "received": true,
-            "echo": data
-        });
-        let _ = socket.emit("reply", response);
-    });
-
-    // Handle 'msg' events
-    socket.on("msg", |socket: SocketRef, Data::<Value>(data)| async move {
-        info!("[msg] From {}: {:?}", socket.id, data);
-        
-        // Broadcast to all other clients (excluding sender)
-        let broadcast_msg = json!({
-            "from": socket.id,
-            "msg": data
-        });
-        let _ = socket.broadcast().emit("chat message", broadcast_msg);
-    });
-
-    // Handle disconnection
-    socket.on_disconnect(|socket: SocketRef| {
-        info!("Client disconnected: {}", socket.id);
-    });
-}
+use api::middleware::socket_io_validation;
+use managers::SocketManager;
 
 #[tokio::main]
-async fn main() {
-    // Initialize tracing (logging) with debug level
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_target(false)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .compact()
-        .init();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
 
-    // Load environment variables
-    dotenv::dotenv().ok();
-
-    // Create a Socket.IO layer with configuration
+    info!("🚀 Starting Socket.IO server...");
+    
     let (layer, io) = SocketIo::new_layer();
 
-    // Set up connection handler
-    io.ns("/", on_connect);
-
-    // Set up CORS to allow all origins
+    // Configure CORS for WebSocket
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_headers(tower_http::cors::Any)
+        .allow_methods(tower_http::cors::Any)
+        .allow_origin(tower_http::cors::Any);
 
-    // Create a new router with the Socket.IO layer and CORS
-    let app = Router::new()
+    // Register Socket.IO event handlers
+    SocketManager::register_handlers(&io);
+
+    let app = axum::Router::new()
+        .route("/", get(|| async { "Socket.IO Game Admin Server - Socket.IO Only" }))
         .layer(cors)
-        .layer(layer);
+        .layer(layer)
+        .layer(middleware::from_fn(socket_io_validation));
 
-    // Get the port from environment or use default
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3002".to_string());
-    let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
+    info!("✨ Server listening on 0.0.0.0:3002");
+    info!("🛡️ Only accepting Socket.IO connections");
+    
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3002").await?;
+    axum::serve(listener, app).await?;
 
-    info!("Socket.IO server running on http://{}", addr);
-    info!("Debug logging enabled");
-    info!("Ping interval: 5 seconds");
-    info!("Ping timeout: 15 seconds");
-
-    // Start the server
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    Ok(())
 }
