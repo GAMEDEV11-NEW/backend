@@ -1,12 +1,16 @@
 pub mod models;
 pub mod repository;
 pub mod service;
+pub mod gameplay_service;
+
+pub use service::DataService;
+pub use gameplay_service::GameplayService;
 
 use once_cell::sync::OnceCell;
 use mongodb::{Client, Database};
 use tracing::info;
 
-static MONGODB_CLIENT: OnceCell<Client> = OnceCell::new();
+// Global static database instance
 static MONGODB_DATABASE: OnceCell<Database> = OnceCell::new();
 
 pub struct DatabaseManager;
@@ -33,19 +37,15 @@ impl DatabaseManager {
         // Get database
         let database = client.database(&database_name);
         
-        // Store in static variables
-        MONGODB_CLIENT.set(client).expect("Failed to set MongoDB client");
+        // Store in static variable
         MONGODB_DATABASE.set(database).expect("Failed to set MongoDB database");
         
         info!("✅ MongoDB connected successfully to database: {}", database_name);
         Ok(())
     }
     
-    pub fn get_client() -> &'static Client {
-        MONGODB_CLIENT.get().expect("MongoDB client not initialized")
-    }
-    
+    // Get the shared database instance
     pub fn get_database() -> &'static Database {
-        MONGODB_DATABASE.get().expect("MongoDB database not initialized")
+        MONGODB_DATABASE.get().expect("MongoDB database not initialized. Call DatabaseManager::initialize() first.")
     }
 } 

@@ -1,6 +1,8 @@
 pub mod connection;
 pub mod validation;
 pub mod events;
+pub mod jwt;
+
 
 use socketioxide::SocketIo;
 use tracing::info;

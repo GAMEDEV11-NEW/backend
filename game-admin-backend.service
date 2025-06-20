@@ -1,0 +1,15 @@
+[Unit]
+Description=Game Admin Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/MAINGAME/backend
+Environment=RUST_ENV=production
+ExecStart=/home/ec2-user/MAINGAME/backend/target/release/game-admin-backend
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target 
