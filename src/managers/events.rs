@@ -585,18 +585,19 @@ impl EventManager {
                 // Handle user profile event
                 let ds4 = data_service.clone();
                 socket.on("set:profile", move |socket: SocketRef, Data::<serde_json::Value>(data)| {
+
+                    info!("👤 [DEBUG] Received user profile request from {}: {:?}", socket.id, data);
                     let ds4 = ds4.clone();
                     async move {
                         info!("🔍 [DEBUG] set:profile event handler STARTED for socket: {}", socket.id);
                         
-                        info!("👤 [DEBUG] Received user profile request from {}: {:?}", socket.id, data);
                         
                         info!("🔍 [DEBUG] Starting validation...");
                         match ValidationManager::validate_user_profile_data(&data) {
                             Ok(_) => {
                                 info!("✅ [DEBUG] Validation passed");
                                 let mobile_no = data["mobile_no"].as_str().unwrap_or("unknown");
-                                let session_token = data["session_token"].as_str().unwrap_or("unknown");
+                                let session_token = data["session_token"].as_str().unwrap_or("unknown");    
                                 let full_name = data["full_name"].as_str().unwrap_or("unknown");
                                 let state = data["state"].as_str().unwrap_or("unknown");
                                 let referral_code = data["referral_code"].as_str().map(|s| s.to_string());

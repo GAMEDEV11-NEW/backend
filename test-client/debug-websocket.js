@@ -19,6 +19,7 @@ const socket = io('http://localhost:3002', {
 let sessionToken = '';
 let expectedOtp = '';
 let profileTimeout;
+const MOBILE_NO = '6935824717'; // Use consistent mobile number
 
 // Add comprehensive event listeners
 socket.on('connect', () => {
@@ -60,7 +61,7 @@ socket.on('device:info:ack', (data) => {
     setTimeout(() => {
         console.log('🔐 Sending login...');
         socket.emit('login', {
-            mobile_no: '6935824711',
+            mobile_no: MOBILE_NO,
             device_id: 'test_device_123',
             fcm_token: 'fcm_token_test_very_long_string_to_satisfy_validation_requirements_minimum_100_characters_long_for_testing_purposes_only_this_is_not_a_real_fcm_token_just_for_debugging_123456789',
             email: 'test@example.com'
@@ -80,7 +81,7 @@ socket.on('login:success', (data) => {
     rl.question('Enter OTP: ', (userOtp) => {
         console.log('🔢 Sending OTP verification...');
         socket.emit('verify:otp', {
-            mobile_no: '6935824711',
+            mobile_no: MOBILE_NO,
             session_token: sessionToken,
             otp: userOtp
         });
@@ -97,7 +98,7 @@ socket.on('otp:verified', (data) => {
         console.log('\n👤 Setting up user profile...');
         setTimeout(() => {
             const profileData = {
-                mobile_no: '6935824711',
+                mobile_no: MOBILE_NO,
                 session_token: sessionToken,
                 full_name: 'John Doe',
                 state: 'California',
@@ -120,7 +121,7 @@ socket.on('otp:verified', (data) => {
                 console.log('⏰ Timeout: No profile:set response received after 10 seconds');
                 console.log('🔍 Debugging: Checking if session is still valid...');
                 console.log('🔍 Session token being used:', sessionToken);
-                console.log('🔍 Mobile number being used: 6935824711');
+                console.log('🔍 Mobile number being used:', MOBILE_NO);
                 
                 // Try to send a ping to check connection
                 socket.emit('ping');
@@ -136,7 +137,7 @@ socket.on('otp:verified', (data) => {
         setTimeout(() => {
             console.log('\n🌐 Setting language preferences...');
             socket.emit('set:language', {
-                mobile_no: '6935824711',
+                mobile_no: MOBILE_NO,
                 session_token: sessionToken,
                 language_code: 'en',
                 language_name: 'English',
@@ -169,7 +170,7 @@ socket.on('profile:set', (data) => {
     setTimeout(() => {
         console.log('\n🌐 Setting language preferences...');
         socket.emit('set:language', {
-            mobile_no: '6935824711',
+            mobile_no: MOBILE_NO,
             session_token: sessionToken,
             language_code: 'en',
             language_name: 'English',
@@ -188,13 +189,92 @@ socket.on('language:set', (data) => {
     console.log('✅ Language set successfully:', data);
     console.log('🎉 Complete user setup finished!');
     
-    // Disconnect after successful test
+    // Test gameplay events
     setTimeout(() => {
-        console.log('🔌 Disconnecting...');
-        rl.close();
-        socket.disconnect();
-    }, 2000);
+        console.log('\n🏀 Testing gameplay events...');
+        testGameplayEvents();
+    }, 1000);
 });
+
+// Add gameplay testing function
+function testGameplayEvents() {
+    console.log('🎮 Connecting to gameplay namespace...');
+    
+    // Create a new socket connection to the gameplay namespace
+    const gameplaySocket = io('http://localhost:3002/gameplay', {
+        transports: ['websocket'],
+        upgrade: false,
+        forceNew: true,
+        timeout: 20000,
+        reconnection: false
+    });
+
+    // Add connection error handler
+    gameplaySocket.on('connect_error', (error) => {
+        console.log('❌ Gameplay connection error:', error);
+        console.log('Error details:', error.message);
+    });
+
+    gameplaySocket.on('connect', () => {
+        console.log('✅ Connected to gameplay namespace');
+        console.log('Gameplay Socket ID:', gameplaySocket.id);
+        
+        // Test player action event
+        setTimeout(() => {
+            console.log('🎯 Sending player_action event...');
+            gameplaySocket.emit('player_action', {
+                action_type: 'move',
+                player_id: MOBILE_NO,
+                session_token: sessionToken,
+                coordinates: {
+                    x: 100,
+                    y: 200
+                },
+                timestamp: new Date().toISOString(),
+                game_state: {
+                    level: 1,
+                    score: 1500,
+                    health: 100
+                }
+            });
+            console.log('📤 player_action event sent successfully');
+        }, 1000);
+    });
+
+    gameplaySocket.on('disconnect', (reason) => {
+        console.log('🔌 Disconnected from gameplay namespace. Reason:', reason);
+        console.log('Disconnect details:', {
+            reason: reason,
+            socketId: gameplaySocket.id,
+            connected: gameplaySocket.connected
+        });
+    });
+
+    gameplaySocket.on('error', (error) => {
+        console.log('💥 Gameplay socket error:', error);
+    });
+
+    // Add timeout to check if connection is established
+    setTimeout(() => {
+        console.log('🔍 Connection status check:');
+        console.log('- Connected:', gameplaySocket.connected);
+        console.log('- Socket ID:', gameplaySocket.id);
+        console.log('- Transport:', gameplaySocket.io.engine.transport.name);
+    }, 2000);
+
+    // Disconnect after gameplay test
+    setTimeout(() => {
+        console.log('🔌 Disconnecting gameplay socket...');
+        gameplaySocket.disconnect();
+        
+        // Disconnect main socket after gameplay test
+        setTimeout(() => {
+            console.log('🔌 Disconnecting main socket...');
+            rl.close();
+            socket.disconnect();
+        }, 1000);
+    }, 5000);
+}
 
 // Add error event listeners
 socket.on('connection_error', (data) => {
@@ -240,4 +320,4 @@ socket.on('pong', (data) => {
 
 console.log('🚀 Starting WebSocket debug test...');
 console.log('Server URL: http://localhost:3002');
-console.log('📱 Mobile number: 6935824711'); 
+console.log('📱 Mobile number:', MOBILE_NO); 
