@@ -1,0 +1,90 @@
+# ========================================
+# GAME ADMIN BACKEND - ENVIRONMENT VARIABLES
+# ========================================
+
+# ========================================
+# SERVER CONFIGURATION
+# ========================================
+# Server host and port
+SERVER_HOST=0.0.0.0
+SERVER_PORT=3002
+
+# ========================================
+# MONGODB CONFIGURATION
+# ========================================
+# MongoDB connection URI (change for production)
+MONGODB_URI=mongodb://localhost:27017
+# MongoDB database name
+MONGODB_DATABASE=game_admin
+
+# ========================================
+# JWT CONFIGURATION
+# ========================================
+# JWT secret key (CHANGE THIS IN PRODUCTION!)
+JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+# JWT token expiry in hours (default: 168 hours = 7 days)
+JWT_TOKEN_EXPIRY_HOURS=168
+
+# ========================================
+# SOCKET.IO CONFIGURATION
+# ========================================
+# Socket.IO heartbeat interval in seconds
+SOCKET_HEARTBEAT_INTERVAL=60
+# Socket.IO timeout in seconds
+SOCKET_TIMEOUT=60
+
+# ========================================
+# LOGGING CONFIGURATION
+# ========================================
+# Log level (DEBUG, INFO, WARN, ERROR)
+LOG_LEVEL=DEBUG
+
+# ========================================
+# SECURITY CONFIGURATION
+# ========================================
+# CORS allowed origins (comma-separated)
+CORS_ALLOWED_ORIGINS=*
+# Enable/disable CORS
+CORS_ENABLED=true
+
+# ========================================
+# GAMEPLAY CONFIGURATION
+# ========================================
+# Maximum concurrent games
+MAX_CONCURRENT_GAMES=100
+# Game session timeout in minutes
+GAME_SESSION_TIMEOUT=30
+
+# ========================================
+# DEVELOPMENT CONFIGURATION
+# ========================================
+# Environment (development, staging, production)
+ENVIRONMENT=development
+# Enable debug mode
+DEBUG=true
+# Enable panic logging
+ENABLE_PANIC_LOGGING=true
+
+# ========================================
+# FIREBASE CONFIGURATION (Optional)
+# ========================================
+# Firebase project ID (for FCM notifications)
+FIREBASE_PROJECT_ID=your-firebase-project-id
+# Firebase private key file path
+FIREBASE_PRIVATE_KEY_PATH=./firebase-service-account.json
+
+# ========================================
+# RATE LIMITING (Optional)
+# ========================================
+# Rate limit requests per minute
+RATE_LIMIT_REQUESTS_PER_MINUTE=100
+# Rate limit burst size
+RATE_LIMIT_BURST_SIZE=10
+
+# ========================================
+# MONITORING (Optional)
+# ========================================
+# Enable metrics collection
+ENABLE_METRICS=false
+# Metrics port
+METRICS_PORT=9090 

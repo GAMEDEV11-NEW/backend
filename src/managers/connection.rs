@@ -9,6 +9,23 @@ use crate::database::service::DataService;
 pub struct ConnectionManager;
 
 impl ConnectionManager {
+    /// Mark a socket as problematic for disconnection
+    pub fn mark_problematic_socket(socket_id: &str) {
+        // This would be called when a socket causes issues
+        warn!("⚠️ Marking socket {} as problematic for disconnection", socket_id);
+        
+        // In a real implementation, you would store this in a global state
+        // For now, we'll just log it
+        error!("🔌 Socket {} marked for disconnection due to problematic behavior", socket_id);
+    }
+
+    /// Check if a socket should be disconnected
+    pub fn should_disconnect_socket(socket_id: &str) -> bool {
+        // This would check if the socket has been marked as problematic
+        // For now, return false to avoid false positives
+        false
+    }
+
     pub async fn send_connect_response(socket: &SocketRef, data_service: Arc<DataService>) {
         // Generate random token (6-digit number)
         let token = rand::thread_rng().gen_range(100000..999999);
@@ -43,6 +60,9 @@ impl ConnectionManager {
             Ok(_) => info!("✅ Sent connect response to socket: {} with token: {}", socket.id, token),
             Err(e) => {
                 error!("❌ Failed to send connect response to socket {}: {}", socket.id, e);
+                // Mark socket as problematic if it fails to send messages
+                Self::mark_problematic_socket(&socket.id.to_string());
+                
                 // Try sending a simple error message
                 if let Err(e2) = socket.emit("error", json!({"message": "connection_failed", "socket_id": socket.id.to_string()})) {
                     error!("❌ Failed to send error message to socket {}: {}", socket.id, e2);
@@ -59,7 +79,11 @@ impl ConnectionManager {
         
         match socket.emit("heartbeat", heartbeat) {
             Ok(_) => info!("💓 Sent initial heartbeat to socket: {}", socket.id),
-            Err(e) => warn!("⚠️ Failed to send initial heartbeat to socket {}: {}", socket.id, e),
+            Err(e) => {
+                warn!("⚠️ Failed to send initial heartbeat to socket {}: {}", socket.id, e);
+                // Mark socket as problematic if heartbeat fails
+                Self::mark_problematic_socket(&socket.id.to_string());
+            }
         }
         
         // Send welcome message
@@ -72,7 +96,11 @@ impl ConnectionManager {
         
         match socket.emit("welcome", welcome_message) {
             Ok(_) => info!("👋 Sent welcome message to socket: {}", socket.id),
-            Err(e) => warn!("⚠️ Failed to send welcome message to socket {}: {}", socket.id, e),
+            Err(e) => {
+                warn!("⚠️ Failed to send welcome message to socket {}: {}", socket.id, e);
+                // Mark socket as problematic if welcome message fails
+                Self::mark_problematic_socket(&socket.id.to_string());
+            }
         }
     }
 } 
