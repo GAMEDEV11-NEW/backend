@@ -587,86 +587,84 @@ impl EventManager {
                 socket.on("set:profile", move |socket: SocketRef, Data::<serde_json::Value>(data)| {
                     let ds4 = ds4.clone();
                     async move {
-                        // Use catch_unwind to prevent panics from crashing the server
-                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| async {
-                            info!("👤 Received user profile request from {}: {:?}", socket.id, data);
-                            match ValidationManager::validate_user_profile_data(&data) {
-                                Ok(_) => {
-                                    let mobile_no = data["mobile_no"].as_str().unwrap_or("unknown");
-                                    let session_token = data["session_token"].as_str().unwrap_or("unknown");
-                                    let full_name = data["full_name"].as_str().unwrap_or("unknown");
-                                    let state = data["state"].as_str().unwrap_or("unknown");
-                                    let referral_code = data["referral_code"].as_str().map(|s| s.to_string());
-                                    let referred_by = data["referred_by"].as_str().map(|s| s.to_string());
-                                    let profile_data = data.get("profile_data").cloned();
-                                    
-                                    // Verify session and mobile number
-                                    let session_verified = ds4.verify_session_and_mobile(mobile_no, session_token).await;
-                                    match session_verified {
-                                        Ok(is_valid) => {
-                                            if is_valid {
-                                                // Get user information first
-                                                let user_info = ds4.get_user_by_mobile(mobile_no).await;
-                                                let (user_id, user_number) = match user_info {
-                                                    Ok(Some(user)) => (user.user_id.clone(), user.user_number),
-                                                    _ => {
-                                                        // User not found, create new user
-                                                        let (new_user_id, new_user_number) = ds4.register_new_user(
-                                                            mobile_no,
-                                                            data["device_id"].as_str().unwrap_or("unknown"),
-                                                            data["fcm_token"].as_str().unwrap_or("unknown"),
-                                                            data["email"].as_str()
-                                                        ).await.unwrap_or(("unknown".to_string(), 0));
-                                                        (new_user_id, new_user_number)
-                                                    }
-                                                };
+                        info!("🔍 [DEBUG] set:profile event handler STARTED for socket: {}", socket.id);
+                        
+                        info!("👤 [DEBUG] Received user profile request from {}: {:?}", socket.id, data);
+                        
+                        info!("🔍 [DEBUG] Starting validation...");
+                        match ValidationManager::validate_user_profile_data(&data) {
+                            Ok(_) => {
+                                info!("✅ [DEBUG] Validation passed");
+                                let mobile_no = data["mobile_no"].as_str().unwrap_or("unknown");
+                                let session_token = data["session_token"].as_str().unwrap_or("unknown");
+                                let full_name = data["full_name"].as_str().unwrap_or("unknown");
+                                let state = data["state"].as_str().unwrap_or("unknown");
+                                let referral_code = data["referral_code"].as_str().map(|s| s.to_string());
+                                let referred_by = data["referred_by"].as_str().map(|s| s.to_string());
+                                let profile_data = data.get("profile_data").cloned();
+                                
+                                info!("🔍 [DEBUG] Extracted data - mobile: {}, session: {}, name: {}, state: {}", mobile_no, session_token, full_name, state);
+                                
+                                // Verify session and mobile number
+                                info!("🔍 [DEBUG] Starting session verification...");
+                                let session_verified = ds4.verify_session_and_mobile(mobile_no, session_token).await;
+                                info!("🔍 [DEBUG] Session verification result: {:?}", session_verified);
+                                
+                                match session_verified {
+                                    Ok(is_valid) => {
+                                        info!("🔍 [DEBUG] Session verification completed, is_valid: {}", is_valid);
+                                        if is_valid {
+                                            info!("✅ [DEBUG] Session is valid, proceeding with profile setup");
+                                            
+                                            // Get user information first
+                                            info!("🔍 [DEBUG] Getting user info...");
+                                            let user_info = ds4.get_user_by_mobile(mobile_no).await;
+                                            info!("🔍 [DEBUG] User info result: {:?}", user_info);
+                                            
+                                            let (user_id, user_number) = match user_info {
+                                                Ok(Some(user)) => {
+                                                    info!("✅ [DEBUG] Found existing user: {} (number: {})", user.user_id, user.user_number);
+                                                    (user.user_id.clone(), user.user_number)
+                                                },
+                                                _ => {
+                                                    info!("🔍 [DEBUG] User not found, creating new user...");
+                                                    // User not found, create new user
+                                                    let (new_user_id, new_user_number) = ds4.register_new_user(
+                                                        mobile_no,
+                                                        data["device_id"].as_str().unwrap_or("unknown"),
+                                                        data["fcm_token"].as_str().unwrap_or("unknown"),
+                                                        data["email"].as_str()
+                                                    ).await.unwrap_or(("unknown".to_string(), 0));
+                                                    info!("✅ [DEBUG] Created new user: {} (number: {})", new_user_id, new_user_number);
+                                                    (new_user_id, new_user_number)
+                                                }
+                                            };
 
-                                                // Check if referral code already exists (if provided)
-                                                let mut final_referral_code = referral_code;
-                                                let referred_by_code = referred_by;
+                                            info!("🔍 [DEBUG] User ID: {}, User Number: {}", user_id, user_number);
+
+                                            // Check if referral code already exists (if provided)
+                                            let mut final_referral_code = referral_code;
+                                            let referred_by_code = referred_by;
+                                            
+                                            info!("🔍 [DEBUG] Processing referral code: {:?}", final_referral_code);
+                                            
+                                            if let Some(ref_code) = &final_referral_code {
+                                                info!("🔍 [DEBUG] Checking if referral code exists: {}", ref_code);
+                                                let code_exists = ds4.check_referral_code_exists(ref_code).await;
+                                                info!("🔍 [DEBUG] Referral code check result: {:?}", code_exists);
                                                 
-                                                if let Some(ref_code) = &final_referral_code {
-                                                    let code_exists = ds4.check_referral_code_exists(ref_code).await;
-                                                    match code_exists {
-                                                        Ok(exists) => {
-                                                            if exists {
-                                                                let error_response = json!({
-                                                                    "status": "error",
-                                                                    "error_code": "REFERRAL_CODE_EXISTS",
-                                                                    "error_type": "VALIDATION_ERROR",
-                                                                    "field": "referral_code",
-                                                                    "message": "Referral code already exists. Please choose a different one.",
-                                                                    "details": json!({
-                                                                        "referral_code": ref_code
-                                                                    }),
-                                                                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                                                                    "socket_id": socket.id.to_string(),
-                                                                    "event": "connection_error"
-                                                                });
-                                                                let payload_doc = to_document(&error_response).unwrap_or_default();
-                                                                let _ = ds4.store_connection_error_event(
-                                                                    &socket.id.to_string(),
-                                                                    "REFERRAL_CODE_EXISTS",
-                                                                    "VALIDATION_ERROR",
-                                                                    "referral_code",
-                                                                    "Referral code already exists. Please choose a different one.",
-                                                                    payload_doc
-                                                                ).await;
-                                                                let _ = socket.emit("connection_error", error_response);
-                                                                info!("❌ User profile failed: Referral code already exists for mobile: {} (socket: {})", mobile_no, socket.id);
-                                                                return;
-                                                            }
-                                                        }
-                                                        Err(e) => {
-                                                            let error_msg = e.to_string();
+                                                match code_exists {
+                                                    Ok(exists) => {
+                                                        if exists {
+                                                            info!("❌ [DEBUG] Referral code already exists");
                                                             let error_response = json!({
                                                                 "status": "error",
-                                                                "error_code": "REFERRAL_CODE_CHECK_ERROR",
-                                                                "error_type": "SYSTEM_ERROR",
+                                                                "error_code": "REFERRAL_CODE_EXISTS",
+                                                                "error_type": "VALIDATION_ERROR",
                                                                 "field": "referral_code",
-                                                                "message": "Failed to check referral code due to system error",
+                                                                "message": "Referral code already exists. Please choose a different one.",
                                                                 "details": json!({
-                                                                    "error": error_msg
+                                                                    "referral_code": ref_code
                                                                 }),
                                                                 "timestamp": chrono::Utc::now().to_rfc3339(),
                                                                 "socket_id": socket.id.to_string(),
@@ -675,155 +673,184 @@ impl EventManager {
                                                             let payload_doc = to_document(&error_response).unwrap_or_default();
                                                             let _ = ds4.store_connection_error_event(
                                                                 &socket.id.to_string(),
-                                                                "REFERRAL_CODE_CHECK_ERROR",
-                                                                "SYSTEM_ERROR",
+                                                                "REFERRAL_CODE_EXISTS",
+                                                                "VALIDATION_ERROR",
                                                                 "referral_code",
-                                                                "Failed to check referral code due to system error",
+                                                                "Referral code already exists. Please choose a different one.",
                                                                 payload_doc
                                                             ).await;
                                                             let _ = socket.emit("connection_error", error_response);
-                                                            info!("❌ User profile system error for mobile: {} (socket: {}): {}", mobile_no, socket.id, error_msg);
+                                                            info!("❌ User profile failed: Referral code already exists for mobile: {} (socket: {})", mobile_no, socket.id);
                                                             return;
+                                                        } else {
+                                                            info!("✅ [DEBUG] Referral code is available");
                                                         }
-                                                    }
-                                                }
-                                                
-                                                // Generate referral code if not provided
-                                                if final_referral_code.is_none() {
-                                                    let generated_code = ds4.generate_unique_referral_code(mobile_no).await;
-                                                    match generated_code {
-                                                        Ok(code) => {
-                                                            info!("Generated referral code: {} for mobile: {}", code, mobile_no);
-                                                            final_referral_code = Some(code);
-                                                        }
-                                                        Err(e) => {
-                                                            let error_msg = e.to_string();
-                                                            let error_response = json!({
-                                                                "status": "error",
-                                                                "error_code": "REFERRAL_CODE_GENERATION_ERROR",
-                                                                "error_type": "SYSTEM_ERROR",
-                                                                "field": "referral_code",
-                                                                "message": "Failed to generate referral code due to system error",
-                                                                "details": json!({
-                                                                    "error": error_msg
-                                                                }),
-                                                                "timestamp": chrono::Utc::now().to_rfc3339(),
-                                                                "socket_id": socket.id.to_string(),
-                                                                "event": "connection_error"
-                                                            });
-                                                            let payload_doc = to_document(&error_response).unwrap_or_default();
-                                                            let _ = ds4.store_connection_error_event(
-                                                                &socket.id.to_string(),
-                                                                "REFERRAL_CODE_GENERATION_ERROR",
-                                                                "SYSTEM_ERROR",
-                                                                "referral_code",
-                                                                "Failed to generate referral code due to system error",
-                                                                payload_doc
-                                                            ).await;
-                                                            let _ = socket.emit("connection_error", error_response);
-                                                            info!("❌ User profile system error for mobile: {} (socket: {}): {}", mobile_no, socket.id, error_msg);
-                                                            return;
-                                                        }
-                                                    }
-                                                }
-                                                
-                                                // Store user profile event
-                                                let store_result = ds4.store_user_profile_event(
-                                                    &socket.id.to_string(),
-                                                    &user_id,
-                                                    user_number,
-                                                    mobile_no,
-                                                    full_name
-                                                ).await;
-                                                
-                                                if let Err(e) = store_result {
-                                                    warn!("Failed to store user profile event: {}", e);
-                                                }
-                                                
-                                                // Also update userregister collection
-                                                let update_register_result = ds4.update_user_profile_in_register(
-                                                    mobile_no,
-                                                    Some(full_name.to_string()),
-                                                    Some(state.to_string()),
-                                                    final_referral_code.clone(),
-                                                    referred_by_code.clone(),
-                                                    profile_data.clone()
-                                                ).await;
-                                                
-                                                match update_register_result {
-                                                    Ok(_) => {
-                                                        info!("✅ Successfully updated user profile in register for mobile: {}", mobile_no);
                                                     }
                                                     Err(e) => {
-                                                        error!("❌ Failed to update user profile in register for mobile {}: {}", mobile_no, e);
-                                                        // Continue with the flow even if update fails
+                                                        info!("❌ [DEBUG] Error checking referral code: {}", e);
+                                                        let error_msg = e.to_string();
+                                                        let error_response = json!({
+                                                            "status": "error",
+                                                            "error_code": "REFERRAL_CODE_CHECK_ERROR",
+                                                            "error_type": "SYSTEM_ERROR",
+                                                            "field": "referral_code",
+                                                            "message": "Failed to check referral code due to system error",
+                                                            "details": json!({
+                                                                "error": error_msg
+                                                            }),
+                                                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                                                            "socket_id": socket.id.to_string(),
+                                                            "event": "connection_error"
+                                                        });
+                                                        let payload_doc = to_document(&error_response).unwrap_or_default();
+                                                        let _ = ds4.store_connection_error_event(
+                                                            &socket.id.to_string(),
+                                                            "REFERRAL_CODE_CHECK_ERROR",
+                                                            "SYSTEM_ERROR",
+                                                            "referral_code",
+                                                            "Failed to check referral code due to system error",
+                                                            payload_doc
+                                                        ).await;
+                                                        let _ = socket.emit("connection_error", error_response);
+                                                        info!("❌ User profile system error for mobile: {} (socket: {}): {}", mobile_no, socket.id, error_msg);
+                                                        return;
                                                     }
                                                 }
-                                                
-                                                // Prepare success response
-                                                let success_response = json!({
-                                                    "status": "success",
-                                                    "message": "User profile updated successfully! 🎉",
-                                                    "mobile_no": mobile_no,
-                                                    "session_token": session_token,
-                                                    "full_name": full_name,
-                                                    "state": state,
-                                                    "referral_code": final_referral_code,
-                                                    "referred_by": referred_by_code,
-                                                    "profile_data": profile_data,
-                                                    "welcome_message": format!("Welcome {}! Your profile has been set up successfully.", full_name),
-                                                    "next_steps": "You can now proceed to set your language preferences.",
-                                                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                                                    "socket_id": socket.id.to_string(),
-                                                    "event": "profile:set"
-                                                });
-                                                
-                                                // Add error handling for emit
-                                                match socket.emit("profile:set", success_response) {
-                                                    Ok(_) => info!("✅ User profile successful for mobile: {} (name: {}, socket: {})", mobile_no, full_name, socket.id),
-                                                    Err(e) => warn!("⚠️ Failed to emit profile:set for mobile: {} (socket: {}): {}", mobile_no, socket.id, e),
-                                                }
-                                                
-                                                // Add a small delay to ensure the message is sent
-                                                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                                            } else {
-                                                let error_response = json!({
-                                                    "status": "error",
-                                                    "error_code": "INVALID_SESSION",
-                                                    "error_type": "AUTHENTICATION_ERROR",
-                                                    "field": "session_token",
-                                                    "message": "Invalid session. Please login again.",
-                                                    "details": json!({
-                                                        "mobile_no": mobile_no,
-                                                        "session_token": session_token
-                                                    }),
-                                                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                                                    "socket_id": socket.id.to_string(),
-                                                    "event": "connection_error"
-                                                });
-                                                let payload_doc = to_document(&error_response).unwrap_or_default();
-                                                let _ = ds4.store_connection_error_event(
-                                                    &socket.id.to_string(),
-                                                    "INVALID_SESSION",
-                                                    "AUTHENTICATION_ERROR",
-                                                    "session_token",
-                                                    "Invalid session. Please login again.",
-                                                    payload_doc
-                                                ).await;
-                                                let _ = socket.emit("connection_error", error_response);
-                                                info!("❌ User profile failed: Invalid session for mobile: {} (socket: {})", mobile_no, socket.id);
                                             }
-                                        }
-                                        Err(e) => {
-                                            let error_msg = e.to_string();
+                                            
+                                            // Generate referral code if not provided
+                                            if final_referral_code.is_none() {
+                                                info!("🔍 [DEBUG] No referral code provided, generating one...");
+                                                let generated_code = ds4.generate_unique_referral_code(mobile_no).await;
+                                                info!("🔍 [DEBUG] Generated code result: {:?}", generated_code);
+                                                
+                                                match generated_code {
+                                                    Ok(code) => {
+                                                        info!("✅ [DEBUG] Generated referral code: {} for mobile: {}", code, mobile_no);
+                                                        final_referral_code = Some(code);
+                                                    }
+                                                    Err(e) => {
+                                                        info!("❌ [DEBUG] Error generating referral code: {}", e);
+                                                        let error_msg = e.to_string();
+                                                        let error_response = json!({
+                                                            "status": "error",
+                                                            "error_code": "REFERRAL_CODE_GENERATION_ERROR",
+                                                            "error_type": "SYSTEM_ERROR",
+                                                            "field": "referral_code",
+                                                            "message": "Failed to generate referral code due to system error",
+                                                            "details": json!({
+                                                                "error": error_msg
+                                                            }),
+                                                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                                                            "socket_id": socket.id.to_string(),
+                                                            "event": "connection_error"
+                                                        });
+                                                        let payload_doc = to_document(&error_response).unwrap_or_default();
+                                                        let _ = ds4.store_connection_error_event(
+                                                            &socket.id.to_string(),
+                                                            "REFERRAL_CODE_GENERATION_ERROR",
+                                                            "SYSTEM_ERROR",
+                                                            "referral_code",
+                                                            "Failed to generate referral code due to system error",
+                                                            payload_doc
+                                                        ).await;
+                                                        let _ = socket.emit("connection_error", error_response);
+                                                        info!("❌ User profile system error for mobile: {} (socket: {}): {}", mobile_no, socket.id, error_msg);
+                                                        return;
+                                                    }
+                                                }
+                                            }
+                                            
+                                            info!("🔍 [DEBUG] Final referral code: {:?}", final_referral_code);
+                                            
+                                            // Store user profile event
+                                            info!("🔍 [DEBUG] Storing user profile event...");
+                                            let store_result = ds4.store_user_profile_event(
+                                                &socket.id.to_string(),
+                                                &user_id,
+                                                user_number,
+                                                mobile_no,
+                                                full_name
+                                            ).await;
+                                            
+                                            info!("🔍 [DEBUG] Store result: {:?}", store_result);
+                                            
+                                            if let Err(e) = store_result {
+                                                warn!("Failed to store user profile event: {}", e);
+                                            }
+                                            
+                                            // Also update userregister collection
+                                            info!("🔍 [DEBUG] Updating user register...");
+                                            let update_register_result = ds4.update_user_profile_in_register(
+                                                mobile_no,
+                                                Some(full_name.to_string()),
+                                                Some(state.to_string()),
+                                                final_referral_code.clone(),
+                                                referred_by_code.clone(),
+                                                profile_data.clone()
+                                            ).await;
+                                            
+                                            info!("🔍 [DEBUG] Update register result: {:?}", update_register_result);
+                                            
+                                            match update_register_result {
+                                                Ok(_) => {
+                                                    info!("✅ Successfully updated user profile in register for mobile: {}", mobile_no);
+                                                }
+                                                Err(e) => {
+                                                    error!("❌ Failed to update user profile in register for mobile {}: {}", mobile_no, e);
+                                                    // Continue with the flow even if update fails
+                                                }
+                                            }
+                                            
+                                            // Prepare success response
+                                            info!("🔍 [DEBUG] Preparing success response...");
+                                            let success_response = json!({
+                                                "status": "success",
+                                                "message": "User profile updated successfully! 🎉",
+                                                "mobile_no": mobile_no,
+                                                "session_token": session_token,
+                                                "full_name": full_name,
+                                                "state": state,
+                                                "referral_code": final_referral_code,
+                                                "referred_by": referred_by_code,
+                                                "profile_data": profile_data,
+                                                "welcome_message": format!("Welcome {}! Your profile has been set up successfully.", full_name),
+                                                "next_steps": "You can now proceed to set your language preferences.",
+                                                "timestamp": chrono::Utc::now().to_rfc3339(),
+                                                "socket_id": socket.id.to_string(),
+                                                "event": "profile:set"
+                                            });
+                                            
+                                            info!("🔍 [DEBUG] Success response prepared: {:?}", success_response);
+                                            
+                                            // Add error handling for emit
+                                            info!("🔍 [DEBUG] Emitting profile:set response...");
+                                            match socket.emit("profile:set", success_response) {
+                                                Ok(_) => {
+                                                    info!("✅ User profile successful for mobile: {} (name: {}, socket: {})", mobile_no, full_name, socket.id);
+                                                    info!("✅ [DEBUG] profile:set response sent successfully");
+                                                },
+                                                Err(e) => {
+                                                    warn!("⚠️ Failed to emit profile:set for mobile: {} (socket: {}): {}", mobile_no, socket.id, e);
+                                                    info!("❌ [DEBUG] Failed to emit profile:set: {}", e);
+                                                },
+                                            }
+                                            
+                                            // Add a small delay to ensure the message is sent
+                                            info!("🔍 [DEBUG] Adding delay to ensure message is sent...");
+                                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                                            info!("✅ [DEBUG] set:profile handler completed successfully");
+                                        } else {
+                                            info!("❌ [DEBUG] Session is invalid");
                                             let error_response = json!({
                                                 "status": "error",
-                                                "error_code": "SESSION_VERIFICATION_ERROR",
-                                                "error_type": "SYSTEM_ERROR",
+                                                "error_code": "INVALID_SESSION",
+                                                "error_type": "AUTHENTICATION_ERROR",
                                                 "field": "session_token",
-                                                "message": "Session verification failed due to system error",
+                                                "message": "Invalid session. Please login again.",
                                                 "details": json!({
-                                                    "error": error_msg
+                                                    "mobile_no": mobile_no,
+                                                    "session_token": session_token
                                                 }),
                                                 "timestamp": chrono::Utc::now().to_rfc3339(),
                                                 "socket_id": socket.id.to_string(),
@@ -832,62 +859,74 @@ impl EventManager {
                                             let payload_doc = to_document(&error_response).unwrap_or_default();
                                             let _ = ds4.store_connection_error_event(
                                                 &socket.id.to_string(),
-                                                "SESSION_VERIFICATION_ERROR",
-                                                "SYSTEM_ERROR",
+                                                "INVALID_SESSION",
+                                                "AUTHENTICATION_ERROR",
                                                 "session_token",
-                                                "Session verification failed due to system error",
+                                                "Invalid session. Please login again.",
                                                 payload_doc
                                             ).await;
                                             let _ = socket.emit("connection_error", error_response);
-                                            info!("❌ User profile system error for mobile: {} (socket: {}): {}", mobile_no, socket.id, error_msg);
+                                            info!("❌ User profile failed: Invalid session for mobile: {} (socket: {})", mobile_no, socket.id);
                                         }
                                     }
-                                }
-                                Err(error_details) => {
-                                    let error_response = json!({
-                                        "status": "error",
-                                        "error_code": error_details.code,
-                                        "error_type": error_details.error_type,
-                                        "field": error_details.field,
-                                        "message": error_details.message,
-                                        "details": error_details.details,
-                                        "timestamp": chrono::Utc::now().to_rfc3339(),
-                                        "socket_id": socket.id.to_string(),
-                                        "event": "connection_error"
-                                    });
-                                    let payload_doc = to_document(&error_response).unwrap_or_default();
-                                    let _ = ds4.store_connection_error_event(
-                                        &socket.id.to_string(),
-                                        &error_details.code,
-                                        &error_details.error_type,
-                                        &error_details.field,
-                                        &error_details.message,
-                                        payload_doc
-                                    ).await;
-                                    let _ = socket.emit("connection_error", error_response);
-                                    info!("❌ User profile validation failed for socket {}: {:?}", socket.id, error_details);
+                                    Err(e) => {
+                                        info!("❌ [DEBUG] Session verification error: {}", e);
+                                        let error_msg = e.to_string();
+                                        let error_response = json!({
+                                            "status": "error",
+                                            "error_code": "SESSION_VERIFICATION_ERROR",
+                                            "error_type": "SYSTEM_ERROR",
+                                            "field": "session_token",
+                                            "message": "Session verification failed due to system error",
+                                            "details": json!({
+                                                "error": error_msg
+                                            }),
+                                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                                            "socket_id": socket.id.to_string(),
+                                            "event": "connection_error"
+                                        });
+                                        let payload_doc = to_document(&error_response).unwrap_or_default();
+                                        let _ = ds4.store_connection_error_event(
+                                            &socket.id.to_string(),
+                                            "SESSION_VERIFICATION_ERROR",
+                                            "SYSTEM_ERROR",
+                                            "session_token",
+                                            "Session verification failed due to system error",
+                                            payload_doc
+                                        ).await;
+                                        let _ = socket.emit("connection_error", error_response);
+                                        info!("❌ User profile system error for mobile: {} (socket: {}): {}", mobile_no, socket.id, error_msg);
+                                    }
                                 }
                             }
-                        }));
-                        
-                        match result {
-                            Ok(_) => {
-                                // Handler completed successfully
-                            }
-                            Err(panic_info) => {
-                                error!("💥 Panic in set:profile event handler for socket {}: {:?}", socket.id, panic_info);
+                            Err(error_details) => {
+                                info!("❌ [DEBUG] Validation failed: {:?}", error_details);
                                 let error_response = json!({
                                     "status": "error",
-                                    "error_code": "INTERNAL_ERROR",
-                                    "error_type": "SYSTEM_ERROR",
-                                    "message": "Internal server error occurred",
+                                    "error_code": error_details.code,
+                                    "error_type": error_details.error_type,
+                                    "field": error_details.field,
+                                    "message": error_details.message,
+                                    "details": error_details.details,
                                     "timestamp": chrono::Utc::now().to_rfc3339(),
                                     "socket_id": socket.id.to_string(),
                                     "event": "connection_error"
                                 });
+                                let payload_doc = to_document(&error_response).unwrap_or_default();
+                                let _ = ds4.store_connection_error_event(
+                                    &socket.id.to_string(),
+                                    &error_details.code,
+                                    &error_details.error_type,
+                                    &error_details.field,
+                                    &error_details.message,
+                                    payload_doc
+                                ).await;
                                 let _ = socket.emit("connection_error", error_response);
+                                info!("❌ User profile validation failed for socket {}: {:?}", socket.id, error_details);
                             }
                         }
+                        
+                        info!("🔍 [DEBUG] set:profile event handler ENDED for socket: {}", socket.id);
                     }
                 });
 
@@ -1124,6 +1163,39 @@ impl EventManager {
                     });
                     if let Err(e) = socket.emit("health_check:ack", health_response) {
                         warn!("⚠️ Failed to send health check ack to socket {}: {}", socket.id, e);
+                    }
+                });
+
+                // Add error handler for any unhandled events
+                socket.on("error", |socket: SocketRef, Data::<serde_json::Value>(data)| async move {
+                    warn!("⚠️ Received error event from socket {}: {:?}", socket.id, data);
+                    
+                    // Send a graceful error response
+                    let error_response = json!({
+                        "status": "error",
+                        "error_code": "UNKNOWN_EVENT",
+                        "error_type": "VALIDATION_ERROR",
+                        "field": "event_name",
+                        "message": "Unknown or unsupported event received",
+                        "details": json!({
+                            "supported_events": [
+                                "device:info",
+                                "login",
+                                "otp:verify",
+                                "set:profile",
+                                "set:language",
+                                "ping",
+                                "keepalive",
+                                "health_check"
+                            ]
+                        }),
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                        "socket_id": socket.id.to_string(),
+                        "event": "unknown_event_error"
+                    });
+                    
+                    if let Err(e) = socket.emit("unknown_event_error", error_response) {
+                        warn!("⚠️ Failed to send unknown event error to socket {}: {}", socket.id, e);
                     }
                 });
             }

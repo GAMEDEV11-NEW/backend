@@ -1,9 +1,8 @@
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use serde::{Deserialize, Serialize};
-use chrono::{Utc, Duration};
 use uuid::Uuid;
+use chrono::{Utc, Duration};
 use tracing::info;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {

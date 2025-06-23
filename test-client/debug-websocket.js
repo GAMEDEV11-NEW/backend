@@ -18,6 +18,7 @@ const socket = io('http://localhost:3002', {
 
 let sessionToken = '';
 let expectedOtp = '';
+let profileTimeout;
 
 // Add comprehensive event listeners
 socket.on('connect', () => {
@@ -37,6 +38,19 @@ socket.on('connect', () => {
             capabilities: ['camera', 'gps']
         });
     }, 1000);
+});
+
+// Debug event listeners for unhandled events
+socket.on('connect_response', (data) => {
+    console.log('📡 Connect response:', data);
+});
+
+socket.on('heartbeat', (data) => {
+    console.log('📡 Heartbeat:', data);
+});
+
+socket.on('welcome', (data) => {
+    console.log('📡 Welcome:', data);
 });
 
 socket.on('device:info:ack', (data) => {
@@ -76,12 +90,13 @@ socket.on('login:success', (data) => {
 socket.on('otp:verified', (data) => {
     console.log('✅ OTP verified:', data);
     console.log('User status:', data.user_status);
+    console.log('Session token:', sessionToken);
     
     // If new user, set up profile
     if (data.user_status === 'new_user') {
         console.log('\n👤 Setting up user profile...');
         setTimeout(() => {
-            socket.emit('set:profile', {
+            const profileData = {
                 mobile_no: '6935824711',
                 session_token: sessionToken,
                 full_name: 'John Doe',
@@ -95,7 +110,25 @@ socket.on('otp:verified', (data) => {
                         privacy: 'public'
                     }
                 }
-            });
+            };
+            console.log('📤 Sending set:profile with data:', JSON.stringify(profileData, null, 2));
+            socket.emit('set:profile', profileData);
+            console.log('👤 Profile set request sent');
+            
+            // Set timeout for profile:set response
+            profileTimeout = setTimeout(() => {
+                console.log('⏰ Timeout: No profile:set response received after 10 seconds');
+                console.log('🔍 Debugging: Checking if session is still valid...');
+                console.log('🔍 Session token being used:', sessionToken);
+                console.log('🔍 Mobile number being used: 6935824711');
+                
+                // Try to send a ping to check connection
+                socket.emit('ping');
+                
+                // Try sending a simple test event
+                console.log('🧪 Testing with a simple event...');
+                socket.emit('health_check');
+            }, 10000);
         }, 1000);
     } else {
         console.log('👤 Existing user - skipping profile setup');
@@ -119,8 +152,18 @@ socket.on('otp:verified', (data) => {
     }
 });
 
+// Add health check response handler
+socket.on('health_check:ack', (data) => {
+    console.log('🏥 Health check response:', data);
+});
+
 socket.on('profile:set', (data) => {
     console.log('✅ Profile set successfully:', data);
+    
+    // Clear timeout since we got the response
+    if (profileTimeout) {
+        clearTimeout(profileTimeout);
+    }
     
     // Continue to language settings
     setTimeout(() => {
@@ -153,6 +196,7 @@ socket.on('language:set', (data) => {
     }, 2000);
 });
 
+// Add error event listeners
 socket.on('connection_error', (data) => {
     console.log('❌ Connection error:', data);
     
@@ -189,9 +233,9 @@ socket.on('connect_error', (error) => {
     }
 });
 
-// Handle any unhandled events
-socket.onAny((eventName, ...args) => {
-    console.log(`📡 Unhandled event: ${eventName}`, args);
+// Add ping/pong handlers for debugging
+socket.on('pong', (data) => {
+    console.log('🏓 Pong received:', data);
 });
 
 console.log('🚀 Starting WebSocket debug test...');
